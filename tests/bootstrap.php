@@ -46,4 +46,6 @@ require $moopress_tests . '/includes/bootstrap.php';
 Moopress_Logger::install();
 
 require_once __DIR__ . '/class-moopress-fake-moodle.php';
+require_once __DIR__ . '/class-moopress-test-order-item.php';
+require_once __DIR__ . '/class-moopress-test-order.php';
 require_once __DIR__ . '/class-moopress-test-case.php';

@@ -40,6 +40,7 @@ class Moopress_Plugin {
 	public static function init(): void {
 		add_action( self::CLEANUP_HOOK, [ 'Moopress_Logger', 'purge' ] );
 		add_action( 'plugins_loaded', [ __CLASS__, 'maybe_upgrade' ] );
+		Moopress_Enrolment::init();
 		if ( is_admin() ) {
 			Moopress_Admin::init();
 		}
@@ -64,6 +65,8 @@ class Moopress_Plugin {
 	 */
 	public static function deactivate(): void {
 		wp_clear_scheduled_hook( self::CLEANUP_HOOK );
+		// Drop any queued enrolment jobs: nothing is sent while the plugin is inactive.
+		wp_unschedule_hook( Moopress_Enrolment::PROCESS_HOOK );
 	}
 
 	/**

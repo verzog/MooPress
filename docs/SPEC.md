@@ -99,8 +99,8 @@ WP‑native‑tomorrow switch stays cheap. That is the whole point.
   for this pairing) or **`auth_saml2`** (SAML). The choice is a configuration of
   existing Moodle plugins; MooPress supplies the WordPress IdP endpoint and the
   user/claim mapping, not a hand‑rolled SSO stack.
-- **Decision pending:** OIDC vs SAML. Default recommendation: **OIDC**. Does not
-  block Phase 1 structure; the IdP piece is isolated behind its own component.
+- **Decided:** support **both** OIDC and SAML — configure whichever the target
+  Moodle runs. The IdP piece is isolated behind its own component.
 
 ### 3.3 Moodle Web Services REST client
 
@@ -208,13 +208,16 @@ guide, adapted to WordPress):
 
 ---
 
-## 8. Open questions
+## 8. Decisions and open questions
 
-1. **SSO protocol:** OIDC (recommended) or SAML? Which Moodle auth plugin is already
-   in play on the target site?
-2. **Copyright holder:** "Vernon Spain" (as `wormiss`) or "Vernon Spain trading as
-   EduCheckout"?
-3. **Membership source of truth for Phase 3:** read membership from iMIS (via a
+Decided:
+- **SSO protocol:** support **both** OIDC and SAML.
+- **Copyright holder:** **Vernon Spain** (as `wormiss`) for now; may move to "trading
+  as EduCheckout" later (a one-line header change, one holder per plugin).
+- **Name:** **MooPress**, with the trademark disclaimer in the README.
+
+Still open:
+1. **Membership source of truth for Phase 3:** read membership from iMIS (via a
    shared/`wormiss`‑style client) or from a WordPress membership/role that `wormiss`
    already maintains? The latter is closer to the post‑iMIS end state.
 4. **Course mapping UX:** per‑product field on the WooCommerce product, a central

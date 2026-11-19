@@ -39,6 +39,18 @@ class Moopress_User_Match {
 	/** User meta key holding the resolved Moodle user id. */
 	const META_MOODLE_ID = 'moopress_moodle_user_id';
 
+	/** Lookup outcome: exactly one Moodle user matched. */
+	const OUTCOME_MATCHED = 'matched';
+
+	/** Lookup outcome: Moodle answered with no matching user. */
+	const OUTCOME_NONE = 'none';
+
+	/** Lookup outcome: more than one Moodle user matched (ambiguous). */
+	const OUTCOME_AMBIGUOUS = 'ambiguous';
+
+	/** Lookup outcome: the lookup could not be completed (no key, or a Moodle error). */
+	const OUTCOME_ERROR = 'error';
+
 	/**
 	 * The Moodle user id for a WordPress user, from the cache or by asking Moodle.
 	 *
@@ -47,13 +59,32 @@ class Moopress_User_Match {
 	 * @return int|null The Moodle user id, or null when there is no match.
 	 */
 	public static function moodle_user_id( int $wp_user_id, bool $refresh = false ): ?int {
+		return self::lookup( $wp_user_id, $refresh )['id'];
+	}
+
+	/**
+	 * Look up the Moodle user for a WordPress user, with the outcome.
+	 *
+	 * The outcome distinguishes a single match, a definitive no-match, an
+	 * ambiguous match (several accounts), and a lookup that could not be done
+	 * (no key, or a Moodle error) — so a caller can, for example, provision only
+	 * on a definitive no-match.
+	 *
+	 * @param int  $wp_user_id WordPress user ID.
+	 * @param bool $refresh    Ignore the cached value and look the user up again.
+	 * @return array{outcome:string, id:int|null}
+	 */
+	public static function lookup( int $wp_user_id, bool $refresh = false ): array {
 		if ( ! $refresh ) {
 			$cached = get_user_meta( $wp_user_id, self::META_MOODLE_ID, true );
 			if ( '' !== $cached ) {
-				return (int) $cached;
+				return [
+					'outcome' => self::OUTCOME_MATCHED,
+					'id'      => (int) $cached,
+				];
 			}
 		}
-		return self::resolve( $wp_user_id );
+		return self::lookup_fresh( $wp_user_id );
 	}
 
 	/**
@@ -66,16 +97,20 @@ class Moopress_User_Match {
 	 * any cached mapping untouched, so matching never throws into a caller.
 	 *
 	 * @param int $wp_user_id WordPress user ID.
-	 * @return int|null The Moodle user id, or null when there is no single match.
+	 * @return array{outcome:string, id:int|null}
 	 */
-	public static function resolve( int $wp_user_id ): ?int {
-		$user = get_userdata( $wp_user_id );
+	private static function lookup_fresh( int $wp_user_id ): array {
+		$error = [
+			'outcome' => self::OUTCOME_ERROR,
+			'id'      => null,
+		];
+		$user  = get_userdata( $wp_user_id );
 		if ( ! $user ) {
-			return null;
+			return $error;
 		}
 		$match = self::match_target( $user );
 		if ( '' === $match['value'] ) {
-			return null;
+			return $error;
 		}
 		try {
 			$found = ( new Moopress_Rest_Client() )->call(
@@ -88,18 +123,24 @@ class Moopress_User_Match {
 		} catch ( Moopress_Exception $e ) {
 			// Transient failure: leave any cached mapping as it is.
 			unset( $e );
-			return null;
+			return $error;
 		}
 		$matches = is_array( $found ) ? $found : [];
 		if ( 1 === count( $matches ) && isset( $matches[0]['id'] ) ) {
 			$moodle_id = (int) $matches[0]['id'];
 			update_user_meta( $wp_user_id, self::META_MOODLE_ID, $moodle_id );
-			return $moodle_id;
+			return [
+				'outcome' => self::OUTCOME_MATCHED,
+				'id'      => $moodle_id,
+			];
 		}
-		// Moodle answered with no match, or with more than one (an ambiguous
-		// identity): drop any stale mapping and report no match.
+		// Moodle answered with no single match: drop any stale mapping and say
+		// whether there was none or more than one (an ambiguous identity).
 		self::forget( $wp_user_id );
-		return null;
+		return [
+			'outcome' => count( $matches ) > 1 ? self::OUTCOME_AMBIGUOUS : self::OUTCOME_NONE,
+			'id'      => null,
+		];
 	}
 
 	/**

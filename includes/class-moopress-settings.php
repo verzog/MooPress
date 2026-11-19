@@ -51,6 +51,14 @@ class Moopress_Settings {
 			'match_by'           => 'email',
 			// When matching by idnumber: the WordPress user-meta key that holds it.
 			'match_meta_key'     => 'moopress_idnumber',
+			// Enrol WooCommerce buyers into mapped Moodle courses.
+			'enrol_enabled'      => false,
+			// The Moodle role id to enrol buyers with (5 is the default student role).
+			'student_roleid'     => 5,
+			// Create a Moodle user for a buyer who has none yet.
+			'provision_users'    => false,
+			// The Moodle auth method for a provisioned user.
+			'provision_auth'     => 'manual',
 		];
 	}
 
