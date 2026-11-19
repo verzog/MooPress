@@ -40,23 +40,22 @@ class Moopress_Enrolment {
 	/** The product meta key holding the mapped Moodle course id. */
 	const COURSE_META = '_moopress_course_id';
 
-	/** Background hook that processes one order (args: order id, suspend flag). */
-	const PROCESS_HOOK = 'moopress_process_order';
-
 	/**
 	 * Register hooks.
 	 *
 	 * @return void
 	 */
 	public static function init(): void {
-		add_action( self::PROCESS_HOOK, [ __CLASS__, 'process_order' ], 10, 2 );
-		// WooCommerce may load after MooPress, so register its hooks once every
-		// plugin is loaded rather than during this plugin's own include.
+		// WooCommerce may load after MooPress, so register its product hooks once
+		// every plugin is loaded rather than during this plugin's own include.
 		add_action( 'plugins_loaded', [ __CLASS__, 'register_woocommerce' ], 20 );
 	}
 
 	/**
-	 * Register the WooCommerce order and product hooks, if WooCommerce is active.
+	 * Register the WooCommerce product hooks, if WooCommerce is active.
+	 *
+	 * The order-status flow lives in Moopress_Entitlement, which reconciles a
+	 * buyer's enrolments to the union of everything they are entitled to.
 	 *
 	 * @return void
 	 */
@@ -64,10 +63,6 @@ class Moopress_Enrolment {
 		if ( ! self::woocommerce_active() ) {
 			return;
 		}
-		add_action( 'woocommerce_order_status_completed', [ __CLASS__, 'schedule_enrol' ] );
-		add_action( 'woocommerce_order_status_processing', [ __CLASS__, 'schedule_enrol' ] );
-		add_action( 'woocommerce_order_status_refunded', [ __CLASS__, 'schedule_suspend' ] );
-		add_action( 'woocommerce_order_status_cancelled', [ __CLASS__, 'schedule_suspend' ] );
 		add_action( 'woocommerce_product_options_general_product_data', [ __CLASS__, 'product_field' ] );
 		add_action( 'woocommerce_process_product_meta', [ __CLASS__, 'save_product_field' ] );
 	}
@@ -79,101 +74,6 @@ class Moopress_Enrolment {
 	 */
 	public static function woocommerce_active(): bool {
 		return class_exists( 'WooCommerce' );
-	}
-
-	/**
-	 * Queue a background enrolment for an order.
-	 *
-	 * @param int $order_id WooCommerce order ID.
-	 * @return void
-	 */
-	public static function schedule_enrol( $order_id ): void {
-		if ( ! Moopress_Settings::get( 'enrol_enabled' ) ) {
-			return;
-		}
-		wp_schedule_single_event( time(), self::PROCESS_HOOK, [ (int) $order_id, false ] );
-	}
-
-	/**
-	 * Queue a background suspension for an order.
-	 *
-	 * @param int $order_id WooCommerce order ID.
-	 * @return void
-	 */
-	public static function schedule_suspend( $order_id ): void {
-		if ( ! Moopress_Settings::get( 'enrol_enabled' ) ) {
-			return;
-		}
-		wp_schedule_single_event( time(), self::PROCESS_HOOK, [ (int) $order_id, true ] );
-	}
-
-	/**
-	 * Enrol or suspend the order's buyer in each mapped course (background).
-	 *
-	 * @param int  $order_id WooCommerce order ID.
-	 * @param bool $suspend  Suspend rather than enrol.
-	 * @return void
-	 */
-	public static function process_order( int $order_id, bool $suspend = false ): void {
-		// Re-check at execution: the toggle may have been turned off since the job was queued.
-		if ( ! Moopress_Settings::get( 'enrol_enabled' ) ) {
-			return;
-		}
-		if ( ! function_exists( 'wc_get_order' ) ) {
-			return;
-		}
-		$order = wc_get_order( $order_id );
-		if ( ! $order ) {
-			return;
-		}
-		$wp_user_id = (int) $order->get_user_id();
-		if ( $wp_user_id <= 0 ) {
-			Moopress_Logger::record_call( 'order', Moopress_Logger::STATUS_SUCCESS, 'Guest order skipped: no WordPress user.' );
-			return;
-		}
-		foreach ( self::course_ids_for_order( $order ) as $course_id ) {
-			if ( $suspend && self::course_granted_by_other_order( $wp_user_id, $course_id, $order_id ) ) {
-				Moopress_Logger::record_call(
-					'suspend',
-					Moopress_Logger::STATUS_SUCCESS,
-					sprintf(
-						/* translators: %d: Moodle course id. */
-						__( 'Kept enrolment in course %d: another paid order still grants it.', 'moopress' ),
-						$course_id
-					)
-				);
-				continue;
-			}
-			self::write_enrolment( $wp_user_id, $course_id, $suspend );
-		}
-	}
-
-	/**
-	 * Whether a paid order other than the given one still grants the course.
-	 *
-	 * @param int $wp_user_id       WordPress user ID.
-	 * @param int $course_id        Moodle course id.
-	 * @param int $exclude_order_id The order being refunded or cancelled.
-	 * @return bool
-	 */
-	private static function course_granted_by_other_order( int $wp_user_id, int $course_id, int $exclude_order_id ): bool {
-		if ( ! function_exists( 'wc_get_orders' ) ) {
-			return false;
-		}
-		$orders = wc_get_orders(
-			[
-				'customer_id' => $wp_user_id,
-				'status'      => [ 'completed', 'processing' ],
-				'exclude'     => [ $exclude_order_id ],
-				'limit'       => -1,
-			]
-		);
-		foreach ( $orders as $order ) {
-			if ( in_array( $course_id, self::course_ids_for_order( $order ), true ) ) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/**
