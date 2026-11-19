@@ -125,7 +125,7 @@ class Moopress_Admin {
 		$clean['membership_enabled']     = ! empty( $input['membership_enabled'] );
 		$role                            = sanitize_key( (string) ( $input['membership_role'] ?? '' ) );
 		$clean['membership_role']        = ( '' !== $role && self::role_exists( $role ) ) ? $role : '';
-		$clean['membership_courses']     = self::parse_course_ids( (string) ( $input['membership_courses'] ?? '' ) );
+		$clean['membership_courses']     = self::parse_course_ids( $input['membership_courses'] ?? '' );
 		$clean['reconcile_max_suspends'] = max( 0, (int) ( $input['reconcile_max_suspends'] ?? 50 ) );
 
 		add_settings_error( Moopress_Settings::OPTION, 'moopress_saved', __( 'Settings saved.', 'moopress' ), 'success' );
@@ -214,14 +214,19 @@ class Moopress_Admin {
 	}
 
 	/**
-	 * Parse a comma- or space-separated list of course ids into unique positive ints.
+	 * Parse course ids from the form string, or from an already-parsed array.
 	 *
-	 * @param string $raw The raw list.
+	 * WordPress can call a setting's sanitiser twice on first save (update_option
+	 * falling through to add_option), so the second call receives the array this
+	 * returned; it must survive that unchanged.
+	 *
+	 * @param mixed $raw The raw list: a comma/space-separated string, or an array.
 	 * @return int[]
 	 */
-	private static function parse_course_ids( string $raw ): array {
-		$ids = [];
-		foreach ( preg_split( '/[\s,]+/', trim( $raw ) ) as $part ) {
+	private static function parse_course_ids( $raw ): array {
+		$parts = is_array( $raw ) ? $raw : preg_split( '/[\s,]+/', trim( (string) $raw ) );
+		$ids   = [];
+		foreach ( (array) $parts as $part ) {
 			$id = (int) $part;
 			if ( $id > 0 ) {
 				$ids[ $id ] = $id;

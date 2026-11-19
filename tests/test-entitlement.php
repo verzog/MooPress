@@ -151,4 +151,30 @@ class Test_Moopress_Entitlement extends Moopress_Test_Case {
 			$this->assertSame( [ 500 ], get_user_meta( $uid, Moopress_Entitlement::MANAGED_META, true ) );
 		}
 	}
+
+	/**
+	 * Suspensions are held back when a source (WooCommerce) is unavailable.
+	 *
+	 * @return void
+	 */
+	public function test_suspend_held_back_when_source_unavailable(): void {
+		// WooCommerce has been seen before but is not active now (not loaded in tests).
+		update_option( 'moopress_wc_seen', 1, false );
+		Moopress_Settings::update(
+			[
+				'dry_run'            => false,
+				'enrol_enabled'      => true,
+				'membership_enabled' => false,
+			]
+		);
+		$uid = self::factory()->user->create();
+		update_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, 55 );
+		update_user_meta( $uid, Moopress_Entitlement::MANAGED_META, [ 303 ] );
+		$this->moodle->set( 'enrol_manual_enrol_users', null );
+
+		Moopress_Entitlement::reconcile_user( $uid );
+
+		$this->assertSame( 0, $this->call_count( 'enrol_manual_enrol_users' ) );
+		$this->assertSame( [ 303 ], get_user_meta( $uid, Moopress_Entitlement::MANAGED_META, true ) );
+	}
 }

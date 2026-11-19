@@ -125,4 +125,17 @@ class Test_Moopress_Admin extends Moopress_Test_Case {
 		$clean = Moopress_Admin::sanitize( [ 'match_meta_key' => '!!!' ] );
 		$this->assertSame( 'moopress_idnumber', $clean['match_meta_key'] );
 	}
+
+	/**
+	 * The membership course bundle survives a second sanitise pass (array input).
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_membership_courses_survives_a_second_pass(): void {
+		$first = Moopress_Admin::sanitize( [ 'membership_courses' => '101, 202' ] );
+		$this->assertSame( [ 101, 202 ], $first['membership_courses'] );
+		// WordPress can run the sanitiser again with the already-parsed array.
+		$second = Moopress_Admin::sanitize( [ 'membership_courses' => $first['membership_courses'] ] );
+		$this->assertSame( [ 101, 202 ], $second['membership_courses'] );
+	}
 }

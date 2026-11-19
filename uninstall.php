@@ -28,7 +28,11 @@ global $wpdb;
 
 delete_option( 'moopress_settings' );
 delete_option( 'moopress_db_version' );
+delete_option( 'moopress_wc_seen' );
 wp_clear_scheduled_hook( 'moopress_cleanup_log' );
+wp_clear_scheduled_hook( 'moopress_reconcile_all' );
+delete_metadata( 'user', 0, 'moopress_moodle_user_id', '', true );
+delete_metadata( 'user', 0, 'moopress_managed_courses', '', true );
 
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin's own table.
 $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}moopress_log" );

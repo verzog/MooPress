@@ -64,7 +64,11 @@ class Moopress_Source_Purchase {
 	 * @return int[]
 	 */
 	public static function courses_for_user( int $wp_user_id ): array {
-		if ( $wp_user_id <= 0 || ! function_exists( 'wc_get_orders' ) ) {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
+			return [];
+		}
+		self::mark_seen();
+		if ( $wp_user_id <= 0 ) {
 			return [];
 		}
 		$orders = wc_get_orders(
@@ -86,15 +90,16 @@ class Moopress_Source_Purchase {
 	/**
 	 * The courses an order granted: its snapshot, or the current product mapping.
 	 *
+	 * An order snapshotted at first payment keeps that exact set (even an empty
+	 * one), so a later change to a product's course mapping cannot alter it.
+	 *
 	 * @param object $order A WooCommerce order.
 	 * @return int[]
 	 */
 	public static function order_courses( $order ): array {
-		if ( method_exists( $order, 'get_meta' ) ) {
+		if ( method_exists( $order, 'meta_exists' ) && $order->meta_exists( self::SNAPSHOT_META ) ) {
 			$snapshot = $order->get_meta( self::SNAPSHOT_META );
-			if ( is_array( $snapshot ) && [] !== $snapshot ) {
-				return array_map( 'intval', $snapshot );
-			}
+			return is_array( $snapshot ) ? array_map( 'intval', $snapshot ) : [];
 		}
 		return Moopress_Enrolment::course_ids_for_order( $order );
 	}
@@ -106,14 +111,37 @@ class Moopress_Source_Purchase {
 	 * @return void
 	 */
 	public static function snapshot_order( $order ): void {
-		if ( ! is_object( $order ) || ! method_exists( $order, 'get_meta' ) ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'meta_exists' ) || ! method_exists( $order, 'update_meta_data' ) ) {
 			return;
 		}
-		$existing = $order->get_meta( self::SNAPSHOT_META );
-		if ( is_array( $existing ) && [] !== $existing ) {
+		if ( $order->meta_exists( self::SNAPSHOT_META ) ) {
 			return;
 		}
 		$order->update_meta_data( self::SNAPSHOT_META, Moopress_Enrolment::course_ids_for_order( $order ) );
 		$order->save();
+	}
+
+	/**
+	 * Whether purchase entitlements can be read right now.
+	 *
+	 * Unavailable only when WooCommerce was used before but is not active now: on
+	 * a site that never used WooCommerce it is simply "available with no orders",
+	 * so membership-only reconciliation is not held back.
+	 *
+	 * @return bool
+	 */
+	public static function is_available(): bool {
+		return function_exists( 'wc_get_orders' ) || ! get_option( 'moopress_wc_seen' );
+	}
+
+	/**
+	 * Remember that WooCommerce has been seen active, so a later outage is noticed.
+	 *
+	 * @return void
+	 */
+	public static function mark_seen(): void {
+		if ( ! get_option( 'moopress_wc_seen' ) ) {
+			update_option( 'moopress_wc_seen', 1, false );
+		}
 	}
 }

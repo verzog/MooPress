@@ -181,21 +181,43 @@ class Moopress_Entitlement {
 	 * @return void
 	 */
 	public static function apply_plan( int $wp_user_id, array $plan ): void {
-		$dry     = (bool) Moopress_Settings::get( 'dry_run' );
-		$managed = self::managed_courses( $wp_user_id );
+		$dry           = (bool) Moopress_Settings::get( 'dry_run' );
+		$allow_suspend = self::sources_available();
+		$managed       = self::managed_courses( $wp_user_id );
 		foreach ( $plan['enrol'] as $course_id ) {
 			if ( Moopress_Enrolment::enrol( $wp_user_id, (int) $course_id ) && ! $dry ) {
 				$managed[] = (int) $course_id;
 			}
 		}
-		foreach ( $plan['suspend'] as $course_id ) {
-			if ( Moopress_Enrolment::suspend( $wp_user_id, (int) $course_id ) && ! $dry ) {
-				$managed = array_diff( $managed, [ (int) $course_id ] );
+		if ( $allow_suspend ) {
+			foreach ( $plan['suspend'] as $course_id ) {
+				if ( Moopress_Enrolment::suspend( $wp_user_id, (int) $course_id ) && ! $dry ) {
+					$managed = array_diff( $managed, [ (int) $course_id ] );
+				}
 			}
+		} elseif ( [] !== $plan['suspend'] ) {
+			// A source is down, so an empty entitlement result may be wrong: keep access.
+			Moopress_Logger::record_call(
+				'reconcile',
+				Moopress_Logger::STATUS_ERROR,
+				__( 'Suspensions held back: an entitlement source (WooCommerce) is unavailable.', 'moopress' )
+			);
 		}
 		if ( ! $dry ) {
 			self::save_managed( $wp_user_id, $managed );
 		}
+	}
+
+	/**
+	 * Whether every entitlement source can currently be read.
+	 *
+	 * When a source is down, an empty result from it is not a true "no longer
+	 * entitled", so the engine holds back suspensions until it is back.
+	 *
+	 * @return bool
+	 */
+	public static function sources_available(): bool {
+		return Moopress_Source_Purchase::is_available();
 	}
 
 	/**
@@ -290,6 +312,22 @@ class Moopress_Entitlement {
 					]
 				) as $id ) {
 					$ids[ (int) $id ] = (int) $id;
+				}
+			}
+		}
+		// Buyers with a paid order, so a purchase whose first reconcile was missed
+		// (dry run, enrolment off, a Moodle outage) is still picked up and tracked.
+		if ( function_exists( 'wc_get_orders' ) ) {
+			$orders = wc_get_orders(
+				[
+					'status' => [ 'completed', 'processing' ],
+					'limit'  => -1,
+				]
+			);
+			foreach ( $orders as $order ) {
+				$uid = is_object( $order ) && method_exists( $order, 'get_user_id' ) ? (int) $order->get_user_id() : 0;
+				if ( $uid > 0 ) {
+					$ids[ $uid ] = $uid;
 				}
 			}
 		}
