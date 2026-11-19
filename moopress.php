@@ -41,6 +41,7 @@ require_once __DIR__ . '/includes/class-moopress-exception.php';
 require_once __DIR__ . '/includes/class-moopress-settings.php';
 require_once __DIR__ . '/includes/class-moopress-logger.php';
 require_once __DIR__ . '/includes/class-moopress-rest-client.php';
+require_once __DIR__ . '/includes/class-moopress-user-match.php';
 require_once __DIR__ . '/includes/class-moopress-admin.php';
 require_once __DIR__ . '/includes/class-moopress-plugin.php';
 

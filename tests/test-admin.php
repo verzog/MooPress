@@ -100,4 +100,29 @@ class Test_Moopress_Admin extends Moopress_Test_Case {
 		$this->assertFalse( $result['ok'] );
 		$this->assertStringContainsString( 'Invalid token', $result['message'] );
 	}
+
+	/**
+	 * The match meta key keeps its case (so a mixed-case SSO field still resolves).
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_preserves_meta_key_case(): void {
+		$clean = Moopress_Admin::sanitize(
+			[
+				'match_by'       => 'idnumber',
+				'match_meta_key' => 'iMIS_ID',
+			]
+		);
+		$this->assertSame( 'iMIS_ID', $clean['match_meta_key'] );
+	}
+
+	/**
+	 * A blank or invalid meta key falls back to the default.
+	 *
+	 * @return void
+	 */
+	public function test_sanitize_meta_key_falls_back_when_empty(): void {
+		$clean = Moopress_Admin::sanitize( [ 'match_meta_key' => '!!!' ] );
+		$this->assertSame( 'moopress_idnumber', $clean['match_meta_key'] );
+	}
 }

@@ -47,6 +47,10 @@ class Moopress_Settings {
 			// Keep full request and response bodies (for debugging only).
 			'log_capture'        => false,
 			'log_retention_days' => 30,
+			// How a WordPress user is matched to a Moodle user: email, idnumber or username.
+			'match_by'           => 'email',
+			// When matching by idnumber: the WordPress user-meta key that holds it.
+			'match_meta_key'     => 'moopress_idnumber',
 		];
 	}
 
