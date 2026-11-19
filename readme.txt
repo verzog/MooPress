@@ -48,3 +48,5 @@ automated tests fake Moodle, so no Moodle site is needed to run them.
 = 0.1.0 =
 * Initial plugin skeleton: settings, Moodle Web Services REST client, audit log,
   CI and the project specification.
+* Admin settings page (Moodle site URL, service-account token, dry run and
+  logging options) with a Test connection button.
