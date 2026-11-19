@@ -44,6 +44,7 @@ class Moopress_Plugin {
 		Moopress_Source_Purchase::init();
 		Moopress_Source_Membership::init();
 		Moopress_Entitlement::init();
+		Moopress_Courses::init();
 		if ( is_admin() ) {
 			Moopress_Admin::init();
 		}

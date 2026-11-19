@@ -125,7 +125,8 @@ WP‑native‑tomorrow switch stays cheap. That is the whole point.
 | Enrol into a course | `enrol_manual_enrol_users` |
 | Suspend / unenrol | `enrol_manual_unenrol_users` (or update to suspended status) |
 | Course catalogue | `core_course_get_courses_by_field` |
-| Learner progress / completion | `core_completion_get_course_completion_status` |
+| A learner's enrolled courses + progress | `core_enrol_get_users_courses` |
+| Learner completion (optional, more detail) | `core_completion_get_course_completion_status` |
 | Learner grades (optional) | `gradereport_user_get_grade_items` |
 
 ### 3.4 Key correctness rules (the things most likely to bite)

@@ -50,3 +50,7 @@ automated tests fake Moodle, so no Moodle site is needed to run them.
   CI and the project specification.
 * Admin settings page (Moodle site URL, service-account token, dry run and
   logging options) with a Test connection button.
+* Course enrolment from WooCommerce purchases and from a membership role, with a
+  reconcile engine, daily sweep and safety limit.
+* Front-end shortcodes: [moopress_catalogue] lists courses, [moopress_my_courses]
+  shows a signed-in member their enrolled courses and progress.
