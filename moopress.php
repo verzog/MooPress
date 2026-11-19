@@ -46,6 +46,7 @@ require_once __DIR__ . '/includes/class-moopress-enrolment.php';
 require_once __DIR__ . '/includes/class-moopress-source-purchase.php';
 require_once __DIR__ . '/includes/class-moopress-source-membership.php';
 require_once __DIR__ . '/includes/class-moopress-entitlement.php';
+require_once __DIR__ . '/includes/class-moopress-courses.php';
 require_once __DIR__ . '/includes/class-moopress-admin.php';
 require_once __DIR__ . '/includes/class-moopress-plugin.php';
 
