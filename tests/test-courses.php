@@ -152,4 +152,48 @@ class Test_Moopress_Courses extends Moopress_Test_Case {
 		$this->assertStringContainsString( '50% complete', $html );
 		$this->assertStringContainsString( 'width:50%', $html );
 	}
+
+	/**
+	 * A public course with no "visible" field is kept; an explicit visible=0 is dropped.
+	 *
+	 * @return void
+	 */
+	public function test_catalogue_keeps_public_course_without_visible_field(): void {
+		$this->moodle->set(
+			'core_course_get_courses_by_field',
+			[
+				'courses' => [
+					[
+						'id'       => 4,
+						'fullname' => 'Public',
+					],
+					[
+						'id'       => 5,
+						'fullname' => 'Hidden',
+						'visible'  => 0,
+					],
+				],
+			]
+		);
+		$courses = Moopress_Courses::courses();
+		$this->assertCount( 1, $courses );
+		$this->assertSame( 4, (int) $courses[0]['id'] );
+	}
+
+	/**
+	 * The my-courses request disables the slow per-course enrolment counts.
+	 *
+	 * @return void
+	 */
+	public function test_my_courses_request_disables_user_count(): void {
+		$uid = self::factory()->user->create();
+		update_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, 55 );
+		$this->moodle->set( 'core_enrol_get_users_courses', [] );
+
+		Moopress_Courses::user_courses( $uid );
+
+		$last = end( $this->moodle->calls );
+		$this->assertSame( 'core_enrol_get_users_courses', $last['wsfunction'] );
+		$this->assertSame( 0, (int) $last['returnusercount'] );
+	}
 }

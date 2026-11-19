@@ -103,8 +103,11 @@ class Moopress_Courses {
 		$list    = isset( $response['courses'] ) && is_array( $response['courses'] ) ? $response['courses'] : [];
 		$courses = [];
 		foreach ( $list as $course ) {
-			// Skip the site "course" (id 1) and anything not visible.
-			if ( isset( $course['id'] ) && (int) $course['id'] > 1 && ! empty( $course['visible'] ) ) {
+			$id = isset( $course['id'] ) ? (int) $course['id'] : 0;
+			// A course with no "visible" field is a public-information record the
+			// account can show but not enter; only an explicit visible=0 is hidden.
+			$hidden = isset( $course['visible'] ) && ! $course['visible'];
+			if ( $id > 1 && ! $hidden ) {
 				$courses[] = $course;
 			}
 		}
@@ -164,7 +167,14 @@ class Moopress_Courses {
 			return $cached;
 		}
 		try {
-			$courses = ( new Moopress_Rest_Client() )->call( 'core_enrol_get_users_courses', [ 'userid' => $moodle_id ] );
+			$courses = ( new Moopress_Rest_Client() )->call(
+				'core_enrol_get_users_courses',
+				[
+					'userid'          => $moodle_id,
+					// The counts are slow and the shortcode never uses them.
+					'returnusercount' => 0,
+				]
+			);
 		} catch ( Moopress_Exception $e ) {
 			unset( $e );
 			return [];
