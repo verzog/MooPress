@@ -34,5 +34,15 @@ wp_clear_scheduled_hook( 'moopress_reconcile_all' );
 delete_metadata( 'user', 0, 'moopress_moodle_user_id', '', true );
 delete_metadata( 'user', 0, 'moopress_managed_courses', '', true );
 
+// Cached results are transients named moopress_* (catalogue, my courses, test results).
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- One-off clean-up on uninstall.
+$wpdb->query(
+	$wpdb->prepare(
+		"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+		$wpdb->esc_like( '_transient_moopress_' ) . '%',
+		$wpdb->esc_like( '_transient_timeout_moopress_' ) . '%'
+	)
+);
+
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin's own table.
 $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}moopress_log" );
