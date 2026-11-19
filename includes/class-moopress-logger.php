@@ -147,6 +147,10 @@ class Moopress_Logger {
 	public static function redact( string $text ): string {
 		$text = (string) preg_replace( '/(\bwstoken=)[^&\s]*/i', '${1}[redacted]', $text );
 		$text = (string) preg_replace( '/("wstoken"\s*:\s*")[^"]*(")/i', '${1}[redacted]${2}', $text );
+		// A provisioned user's password can appear in a captured request body,
+		// form-encoded (users[0][password]=...) or as JSON.
+		$text = (string) preg_replace( '/(password(?:%5D|\])?=)[^&\s]*/i', '${1}[redacted]', $text );
+		$text = (string) preg_replace( '/("password"\s*:\s*")[^"]*(")/i', '${1}[redacted]${2}', $text );
 		return (string) preg_replace( '/(Bearer\s+)[A-Za-z0-9._\-~+\/=]+/i', '${1}[redacted]', $text );
 	}
 

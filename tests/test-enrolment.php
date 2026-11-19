@@ -124,6 +124,28 @@ class Test_Moopress_Enrolment extends Moopress_Test_Case {
 	}
 
 	/**
+	 * An ambiguous match is never provisioned (no duplicate account is created).
+	 *
+	 * @return void
+	 */
+	public function test_ambiguous_match_is_not_provisioned(): void {
+		Moopress_Settings::update(
+			[
+				'dry_run'         => false,
+				'provision_users' => true,
+			]
+		);
+		$uid = self::factory()->user->create( [ 'user_email' => 'dup@example.org' ] );
+		$this->moodle->set( 'core_user_get_users_by_field', [ [ 'id' => 1 ], [ 'id' => 2 ] ] );
+
+		$this->assertFalse( Moopress_Enrolment::enrol( $uid, 101 ) );
+		$this->assertSame( '', get_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, true ) );
+		foreach ( $this->moodle->calls as $call ) {
+			$this->assertNotSame( 'core_user_create_users', $call['wsfunction'] );
+		}
+	}
+
+	/**
 	 * A product's course comes from its meta, falling back to its parent product.
 	 *
 	 * @return void

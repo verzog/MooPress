@@ -50,6 +50,17 @@ class Moopress_Enrolment {
 	 */
 	public static function init(): void {
 		add_action( self::PROCESS_HOOK, [ __CLASS__, 'process_order' ], 10, 2 );
+		// WooCommerce may load after MooPress, so register its hooks once every
+		// plugin is loaded rather than during this plugin's own include.
+		add_action( 'plugins_loaded', [ __CLASS__, 'register_woocommerce' ], 20 );
+	}
+
+	/**
+	 * Register the WooCommerce order and product hooks, if WooCommerce is active.
+	 *
+	 * @return void
+	 */
+	public static function register_woocommerce(): void {
 		if ( ! self::woocommerce_active() ) {
 			return;
 		}
@@ -104,6 +115,10 @@ class Moopress_Enrolment {
 	 * @return void
 	 */
 	public static function process_order( int $order_id, bool $suspend = false ): void {
+		// Re-check at execution: the toggle may have been turned off since the job was queued.
+		if ( ! Moopress_Settings::get( 'enrol_enabled' ) ) {
+			return;
+		}
 		if ( ! function_exists( 'wc_get_order' ) ) {
 			return;
 		}
@@ -117,8 +132,48 @@ class Moopress_Enrolment {
 			return;
 		}
 		foreach ( self::course_ids_for_order( $order ) as $course_id ) {
+			if ( $suspend && self::course_granted_by_other_order( $wp_user_id, $course_id, $order_id ) ) {
+				Moopress_Logger::record_call(
+					'suspend',
+					Moopress_Logger::STATUS_SUCCESS,
+					sprintf(
+						/* translators: %d: Moodle course id. */
+						__( 'Kept enrolment in course %d: another paid order still grants it.', 'moopress' ),
+						$course_id
+					)
+				);
+				continue;
+			}
 			self::write_enrolment( $wp_user_id, $course_id, $suspend );
 		}
+	}
+
+	/**
+	 * Whether a paid order other than the given one still grants the course.
+	 *
+	 * @param int $wp_user_id       WordPress user ID.
+	 * @param int $course_id        Moodle course id.
+	 * @param int $exclude_order_id The order being refunded or cancelled.
+	 * @return bool
+	 */
+	private static function course_granted_by_other_order( int $wp_user_id, int $course_id, int $exclude_order_id ): bool {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
+			return false;
+		}
+		$orders = wc_get_orders(
+			[
+				'customer_id' => $wp_user_id,
+				'status'      => [ 'completed', 'processing' ],
+				'exclude'     => [ $exclude_order_id ],
+				'limit'       => -1,
+			]
+		);
+		foreach ( $orders as $order ) {
+			if ( in_array( $course_id, self::course_ids_for_order( $order ), true ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -190,7 +245,8 @@ class Moopress_Enrolment {
 	private static function write_enrolment( int $wp_user_id, int $course_id, bool $suspend ): bool {
 		$dry       = (bool) Moopress_Settings::get( 'dry_run' );
 		$action    = $suspend ? 'suspend' : 'enrol';
-		$moodle_id = Moopress_User_Match::moodle_user_id( $wp_user_id );
+		$lookup    = Moopress_User_Match::lookup( $wp_user_id );
+		$moodle_id = $lookup['id'];
 		if ( null === $moodle_id ) {
 			if ( ! Moopress_Settings::get( 'provision_users' ) ) {
 				Moopress_Logger::record_call(
@@ -200,6 +256,21 @@ class Moopress_Enrolment {
 						/* translators: %d: WordPress user ID. */
 						__( 'No Moodle user for WordPress user %d and provisioning is off; skipped.', 'moopress' ),
 						$wp_user_id
+					)
+				);
+				return false;
+			}
+			if ( Moopress_User_Match::OUTCOME_NONE !== $lookup['outcome'] ) {
+				// Only a definitive "no such user" is safe to provision: an ambiguous
+				// match or a failed lookup must not create a (possibly duplicate) account.
+				Moopress_Logger::record_call(
+					$action,
+					Moopress_Logger::STATUS_ERROR,
+					sprintf(
+						/* translators: 1: WordPress user ID, 2: the lookup outcome. */
+						__( 'Not provisioning WordPress user %1$d: the Moodle lookup was "%2$s".', 'moopress' ),
+						$wp_user_id,
+						$lookup['outcome']
 					)
 				);
 				return false;
