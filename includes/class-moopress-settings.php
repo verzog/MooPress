@@ -39,26 +39,34 @@ class Moopress_Settings {
 	 */
 	public static function defaults(): array {
 		return [
-			'base_url'           => '',
-			'token'              => '',
+			'base_url'               => '',
+			'token'                  => '',
 			// Nothing is written to Moodle while this is on: enrolment changes are logged only.
-			'dry_run'            => true,
-			'log_enabled'        => true,
+			'dry_run'                => true,
+			'log_enabled'            => true,
 			// Keep full request and response bodies (for debugging only).
-			'log_capture'        => false,
-			'log_retention_days' => 30,
+			'log_capture'            => false,
+			'log_retention_days'     => 30,
 			// How a WordPress user is matched to a Moodle user: email, idnumber or username.
-			'match_by'           => 'email',
+			'match_by'               => 'email',
 			// When matching by idnumber: the WordPress user-meta key that holds it.
-			'match_meta_key'     => 'moopress_idnumber',
+			'match_meta_key'         => 'moopress_idnumber',
 			// Enrol WooCommerce buyers into mapped Moodle courses.
-			'enrol_enabled'      => false,
+			'enrol_enabled'          => false,
 			// The Moodle role id to enrol buyers with (5 is the default student role).
-			'student_roleid'     => 5,
+			'student_roleid'         => 5,
 			// Create a Moodle user for a buyer who has none yet.
-			'provision_users'    => false,
+			'provision_users'        => false,
 			// The Moodle auth method for a provisioned user.
-			'provision_auth'     => 'manual',
+			'provision_auth'         => 'manual',
+			// Grant a course bundle to users in a membership role.
+			'membership_enabled'     => false,
+			// The WordPress role a current member holds.
+			'membership_role'        => '',
+			// The Moodle course ids granted to current members.
+			'membership_courses'     => [],
+			// Hold back a reconcile sweep that would suspend more than this many enrolments.
+			'reconcile_max_suspends' => 50,
 		];
 	}
 

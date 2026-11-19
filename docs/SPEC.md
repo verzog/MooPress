@@ -215,10 +215,10 @@ Decided:
 - **Copyright holder:** **Vernon Spain** (as `wormiss`) for now; may move to "trading
   as EduCheckout" later (a one-line header change, one holder per plugin).
 - **Name:** **MooPress**, with the trademark disclaimer in the README.
+- **Membership source:** a **WordPress role** (the role a membership system such as
+  `wormiss` assigns to current members). MooPress stays iMIS‑free, so the move off
+  iMIS is just a matter of whatever keeps maintaining that role.
 
 Still open:
-1. **Membership source of truth for Phase 3:** read membership from iMIS (via a
-   shared/`wormiss`‑style client) or from a WordPress membership/role that `wormiss`
-   already maintains? The latter is closer to the post‑iMIS end state.
-4. **Course mapping UX:** per‑product field on the WooCommerce product, a central
-   mapping table, or both?
+1. **Course mapping UX:** Phase 2 uses a per‑product field on the WooCommerce
+   product; a central mapping table could be added later if bulk editing is needed.

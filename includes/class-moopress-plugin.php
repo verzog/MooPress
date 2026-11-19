@@ -41,6 +41,9 @@ class Moopress_Plugin {
 		add_action( self::CLEANUP_HOOK, [ 'Moopress_Logger', 'purge' ] );
 		add_action( 'plugins_loaded', [ __CLASS__, 'maybe_upgrade' ] );
 		Moopress_Enrolment::init();
+		Moopress_Source_Purchase::init();
+		Moopress_Source_Membership::init();
+		Moopress_Entitlement::init();
 		if ( is_admin() ) {
 			Moopress_Admin::init();
 		}
@@ -65,8 +68,9 @@ class Moopress_Plugin {
 	 */
 	public static function deactivate(): void {
 		wp_clear_scheduled_hook( self::CLEANUP_HOOK );
-		// Drop any queued enrolment jobs: nothing is sent while the plugin is inactive.
-		wp_unschedule_hook( Moopress_Enrolment::PROCESS_HOOK );
+		// Drop any queued reconcile jobs: nothing is sent while the plugin is inactive.
+		wp_unschedule_hook( Moopress_Entitlement::RECONCILE_USER_HOOK );
+		wp_clear_scheduled_hook( Moopress_Entitlement::RECONCILE_ALL_HOOK );
 	}
 
 	/**

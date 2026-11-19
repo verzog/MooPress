@@ -38,6 +38,9 @@ class Moopress_Admin {
 	/** The admin-post action for the connection test. */
 	const TEST_ACTION = 'moopress_test_connection';
 
+	/** The admin-post action for an on-demand reconcile. */
+	const RECONCILE_ACTION = 'moopress_reconcile_now';
+
 	/**
 	 * Register admin hooks.
 	 *
@@ -47,6 +50,7 @@ class Moopress_Admin {
 		add_action( 'admin_menu', [ __CLASS__, 'menu' ] );
 		add_action( 'admin_init', [ __CLASS__, 'register_settings' ] );
 		add_action( 'admin_post_' . self::TEST_ACTION, [ __CLASS__, 'handle_test' ] );
+		add_action( 'admin_post_' . self::RECONCILE_ACTION, [ __CLASS__, 'handle_reconcile' ] );
 	}
 
 	/**
@@ -118,6 +122,12 @@ class Moopress_Admin {
 		$auth                     = (string) preg_replace( '/[^a-z0-9_]/', '', strtolower( (string) ( $input['provision_auth'] ?? 'manual' ) ) );
 		$clean['provision_auth']  = '' !== $auth ? $auth : 'manual';
 
+		$clean['membership_enabled']     = ! empty( $input['membership_enabled'] );
+		$role                            = sanitize_key( (string) ( $input['membership_role'] ?? '' ) );
+		$clean['membership_role']        = ( '' !== $role && self::role_exists( $role ) ) ? $role : '';
+		$clean['membership_courses']     = self::parse_course_ids( $input['membership_courses'] ?? '' );
+		$clean['reconcile_max_suspends'] = max( 0, (int) ( $input['reconcile_max_suspends'] ?? 50 ) );
+
 		add_settings_error( Moopress_Settings::OPTION, 'moopress_saved', __( 'Settings saved.', 'moopress' ), 'success' );
 		return $clean;
 	}
@@ -168,6 +178,64 @@ class Moopress_Admin {
 	}
 
 	/**
+	 * Handle the Reconcile now button: queue a reconcile sweep and redirect back.
+	 *
+	 * @return void
+	 */
+	public static function handle_reconcile(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You are not allowed to do this.', 'moopress' ) );
+		}
+		check_admin_referer( self::RECONCILE_ACTION );
+		wp_schedule_single_event( time(), Moopress_Entitlement::RECONCILE_ALL_HOOK );
+		set_transient( self::reconcile_key(), 1, MINUTE_IN_SECONDS );
+		wp_safe_redirect( add_query_arg( 'page', self::MENU_SLUG, admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	/**
+	 * The per-user transient key noting a queued reconcile across the redirect.
+	 *
+	 * @return string
+	 */
+	private static function reconcile_key(): string {
+		return 'moopress_reconcile_' . get_current_user_id();
+	}
+
+	/**
+	 * Whether a role slug exists.
+	 *
+	 * @param string $role Role slug.
+	 * @return bool
+	 */
+	private static function role_exists( string $role ): bool {
+		$roles = wp_roles();
+		return $roles instanceof WP_Roles && isset( $roles->roles[ $role ] );
+	}
+
+	/**
+	 * Parse course ids from the form string, or from an already-parsed array.
+	 *
+	 * WordPress can call a setting's sanitiser twice on first save (update_option
+	 * falling through to add_option), so the second call receives the array this
+	 * returned; it must survive that unchanged.
+	 *
+	 * @param mixed $raw The raw list: a comma/space-separated string, or an array.
+	 * @return int[]
+	 */
+	private static function parse_course_ids( $raw ): array {
+		$parts = is_array( $raw ) ? $raw : preg_split( '/[\s,]+/', trim( (string) $raw ) );
+		$ids   = [];
+		foreach ( (array) $parts as $part ) {
+			$id = (int) $part;
+			if ( $id > 0 ) {
+				$ids[ $id ] = $id;
+			}
+		}
+		return array_values( $ids );
+	}
+
+	/**
 	 * Render the settings page.
 	 *
 	 * @return void
@@ -183,6 +251,10 @@ class Moopress_Admin {
 		$result     = get_transient( self::result_key() );
 		if ( false !== $result ) {
 			delete_transient( self::result_key() );
+		}
+		$reconciled = (bool) get_transient( self::reconcile_key() );
+		if ( $reconciled ) {
+			delete_transient( self::reconcile_key() );
 		}
 		?>
 		<div class="wrap">
@@ -207,6 +279,11 @@ class Moopress_Admin {
 						echo esc_html( sprintf( __( 'Connection failed: %s', 'moopress' ), (string) ( $result['message'] ?? '' ) ) );
 						?>
 					</p>
+				</div>
+			<?php endif; ?>
+			<?php if ( $reconciled ) : ?>
+				<div class="notice notice-success">
+					<p><?php echo esc_html__( 'Reconcile queued. Enrolments will be updated in the background.', 'moopress' ); ?></p>
 				</div>
 			<?php endif; ?>
 
@@ -365,6 +442,60 @@ class Moopress_Admin {
 							</p>
 						</td>
 					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Membership courses', 'moopress' ); ?></th>
+						<td>
+							<label>
+								<input name="<?php echo esc_attr( $opt ); ?>[membership_enabled]" type="checkbox" value="1"
+									<?php checked( ! empty( $settings['membership_enabled'] ) ); ?>>
+								<?php echo esc_html__( 'Grant a course bundle to users in a membership role, and remove it when they leave.', 'moopress' ); ?>
+							</label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="moopress_membership_role"><?php echo esc_html__( 'Membership role', 'moopress' ); ?></label>
+						</th>
+						<td>
+							<select name="<?php echo esc_attr( $opt ); ?>[membership_role]" id="moopress_membership_role">
+								<option value=""><?php echo esc_html__( '— Select a role —', 'moopress' ); ?></option>
+								<?php foreach ( self::roles() as $slug => $name ) : ?>
+									<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $slug, $settings['membership_role'] ); ?>>
+										<?php echo esc_html( $name ); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+							<p class="description">
+								<?php echo esc_html__( 'The WordPress role your membership system assigns to current members.', 'moopress' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="moopress_membership_courses"><?php echo esc_html__( 'Member course ids', 'moopress' ); ?></label>
+						</th>
+						<td>
+							<input name="<?php echo esc_attr( $opt ); ?>[membership_courses]" id="moopress_membership_courses"
+								type="text" class="regular-text"
+								value="<?php echo esc_attr( implode( ', ', array_map( 'strval', (array) $settings['membership_courses'] ) ) ); ?>">
+							<p class="description">
+								<?php echo esc_html__( 'The Moodle course ids members get, separated by commas.', 'moopress' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="moopress_reconcile_max"><?php echo esc_html__( 'Reconcile safety limit', 'moopress' ); ?></label>
+						</th>
+						<td>
+							<input name="<?php echo esc_attr( $opt ); ?>[reconcile_max_suspends]" id="moopress_reconcile_max"
+								type="number" min="0" class="small-text"
+								value="<?php echo esc_attr( (string) $settings['reconcile_max_suspends'] ); ?>">
+							<p class="description">
+								<?php echo esc_html__( 'The daily reconcile is held back if it would suspend more enrolments than this at once.', 'moopress' ); ?>
+							</p>
+						</td>
+					</tr>
 				</table>
 				<?php submit_button(); ?>
 			</form>
@@ -390,7 +521,27 @@ class Moopress_Admin {
 				);
 				?>
 			</form>
+
+			<h2><?php echo esc_html__( 'Reconcile', 'moopress' ); ?></h2>
+			<p>
+				<?php echo esc_html__( 'Check every member and buyer now and bring their Moodle enrolments into line. Runs in the background.', 'moopress' ); ?>
+			</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="<?php echo esc_attr( self::RECONCILE_ACTION ); ?>">
+				<?php wp_nonce_field( self::RECONCILE_ACTION ); ?>
+				<?php submit_button( __( 'Reconcile now', 'moopress' ), 'secondary', 'submit', false ); ?>
+			</form>
 		</div>
 		<?php
+	}
+
+	/**
+	 * The site's roles as slug => display name.
+	 *
+	 * @return array
+	 */
+	private static function roles(): array {
+		$roles = wp_roles();
+		return $roles instanceof WP_Roles ? $roles->get_names() : [];
 	}
 }
