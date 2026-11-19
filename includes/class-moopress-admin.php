@@ -112,6 +112,12 @@ class Moopress_Admin {
 		$meta_key                = (string) preg_replace( '/[^A-Za-z0-9_\-]/', '', trim( (string) ( $input['match_meta_key'] ?? '' ) ) );
 		$clean['match_meta_key'] = '' !== $meta_key ? $meta_key : 'moopress_idnumber';
 
+		$clean['enrol_enabled']   = ! empty( $input['enrol_enabled'] );
+		$clean['student_roleid']  = max( 1, (int) ( $input['student_roleid'] ?? 5 ) );
+		$clean['provision_users'] = ! empty( $input['provision_users'] );
+		$auth                     = (string) preg_replace( '/[^a-z0-9_]/', '', strtolower( (string) ( $input['provision_auth'] ?? 'manual' ) ) );
+		$clean['provision_auth']  = '' !== $auth ? $auth : 'manual';
+
 		add_settings_error( Moopress_Settings::OPTION, 'moopress_saved', __( 'Settings saved.', 'moopress' ), 'success' );
 		return $clean;
 	}
@@ -304,6 +310,58 @@ class Moopress_Admin {
 								value="<?php echo esc_attr( $settings['match_meta_key'] ); ?>">
 							<p class="description">
 								<?php echo esc_html__( 'When matching by ID number: the WordPress user-field key that holds it (e.g. the iMIS ID), matched against Moodle\'s idnumber.', 'moopress' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Course enrolment', 'moopress' ); ?></th>
+						<td>
+							<label>
+								<input name="<?php echo esc_attr( $opt ); ?>[enrol_enabled]" type="checkbox" value="1"
+									<?php checked( ! empty( $settings['enrol_enabled'] ) ); ?>>
+								<?php echo esc_html__( 'Enrol WooCommerce buyers into the mapped Moodle course when an order is paid (and suspend on refund).', 'moopress' ); ?>
+							</label>
+							<p class="description">
+								<?php echo esc_html__( 'A product\'s Moodle course is set on the product edit screen. Nothing is written to Moodle while Dry run is on.', 'moopress' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="moopress_student_roleid"><?php echo esc_html__( 'Student role id', 'moopress' ); ?></label>
+						</th>
+						<td>
+							<input name="<?php echo esc_attr( $opt ); ?>[student_roleid]" id="moopress_student_roleid"
+								type="number" min="1" class="small-text"
+								value="<?php echo esc_attr( (string) $settings['student_roleid'] ); ?>">
+							<p class="description">
+								<?php echo esc_html__( 'The Moodle role to enrol buyers with. 5 is the default student role.', 'moopress' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Provision users', 'moopress' ); ?></th>
+						<td>
+							<label>
+								<input name="<?php echo esc_attr( $opt ); ?>[provision_users]" type="checkbox" value="1"
+									<?php checked( ! empty( $settings['provision_users'] ) ); ?>>
+								<?php echo esc_html__( 'Create a Moodle user for a buyer who has none yet.', 'moopress' ); ?>
+							</label>
+							<p class="description">
+								<?php echo esc_html__( 'With single sign-on, users are usually created in Moodle on first sign-in; turn this on to enrol buyers before they have signed in.', 'moopress' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="moopress_provision_auth"><?php echo esc_html__( 'Provisioned user auth method', 'moopress' ); ?></label>
+						</th>
+						<td>
+							<input name="<?php echo esc_attr( $opt ); ?>[provision_auth]" id="moopress_provision_auth"
+								type="text" class="regular-text"
+								value="<?php echo esc_attr( $settings['provision_auth'] ); ?>">
+							<p class="description">
+								<?php echo esc_html__( 'The Moodle authentication method for a provisioned user, e.g. manual, oidc or saml2.', 'moopress' ); ?>
 							</p>
 						</td>
 					</tr>
