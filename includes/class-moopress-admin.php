@@ -104,9 +104,12 @@ class Moopress_Admin {
 		$clean['log_capture']        = ! empty( $input['log_capture'] );
 		$clean['log_retention_days'] = max( 1, (int) ( $input['log_retention_days'] ?? 30 ) );
 
-		$by                      = (string) ( $input['match_by'] ?? 'email' );
-		$clean['match_by']       = in_array( $by, [ 'email', 'idnumber', 'username' ], true ) ? $by : 'email';
-		$meta_key                = sanitize_key( (string) ( $input['match_meta_key'] ?? '' ) );
+		$by                = (string) ( $input['match_by'] ?? 'email' );
+		$clean['match_by'] = in_array( $by, [ 'email', 'idnumber', 'username' ], true ) ? $by : 'email';
+		// Keep only characters valid in a user-meta key, but preserve case: an SSO
+		// field such as "iMIS_ID" must not be lowercased, or match_target() would
+		// read a different, empty key.
+		$meta_key                = (string) preg_replace( '/[^A-Za-z0-9_\-]/', '', trim( (string) ( $input['match_meta_key'] ?? '' ) ) );
 		$clean['match_meta_key'] = '' !== $meta_key ? $meta_key : 'moopress_idnumber';
 
 		add_settings_error( Moopress_Settings::OPTION, 'moopress_saved', __( 'Settings saved.', 'moopress' ), 'success' );
