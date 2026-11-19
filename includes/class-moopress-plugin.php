@@ -45,6 +45,9 @@ class Moopress_Plugin {
 		Moopress_Source_Membership::init();
 		Moopress_Entitlement::init();
 		Moopress_Courses::init();
+		add_filter( 'wp_privacy_personal_data_exporters', [ __CLASS__, 'register_exporter' ] );
+		add_filter( 'wp_privacy_personal_data_erasers', [ __CLASS__, 'register_eraser' ] );
+		add_action( 'admin_init', [ __CLASS__, 'privacy_policy' ] );
 		if ( is_admin() ) {
 			Moopress_Admin::init();
 		}
@@ -83,5 +86,140 @@ class Moopress_Plugin {
 		if ( get_option( 'moopress_db_version' ) !== Moopress_Logger::DB_VERSION ) {
 			Moopress_Logger::install();
 		}
+	}
+
+	/**
+	 * Add the MooPress exporter to Tools > Export Personal Data.
+	 *
+	 * @param array $exporters Registered exporters.
+	 * @return array
+	 */
+	public static function register_exporter( array $exporters ): array {
+		$exporters['moopress'] = [
+			'exporter_friendly_name' => __( 'MooPress (Moodle link and audit log)', 'moopress' ),
+			'callback'               => [ __CLASS__, 'export_personal_data' ],
+		];
+		return $exporters;
+	}
+
+	/**
+	 * Add the MooPress eraser to Tools > Erase Personal Data.
+	 *
+	 * @param array $erasers Registered erasers.
+	 * @return array
+	 */
+	public static function register_eraser( array $erasers ): array {
+		$erasers['moopress'] = [
+			'eraser_friendly_name' => __( 'MooPress audit log and Moodle link', 'moopress' ),
+			'callback'             => [ __CLASS__, 'erase_personal_data' ],
+		];
+		return $erasers;
+	}
+
+	/**
+	 * Export a person's Moodle link and audit-log entries.
+	 *
+	 * @param string $email Email address.
+	 * @param int    $page  Page, from 1.
+	 * @return array
+	 */
+	public static function export_personal_data( string $email, int $page = 1 ): array {
+		$user = get_user_by( 'email', $email );
+		if ( ! $user ) {
+			return [
+				'data' => [],
+				'done' => true,
+			];
+		}
+		$per_page = 100;
+		$data     = [];
+		if ( 1 === $page ) {
+			$moodle_id = get_user_meta( $user->ID, Moopress_User_Match::META_MOODLE_ID, true );
+			if ( '' !== (string) $moodle_id ) {
+				$data[] = [
+					'group_id'    => 'moopress-link',
+					'group_label' => __( 'MooPress Moodle link', 'moopress' ),
+					'item_id'     => 'moopress-link',
+					'data'        => [
+						[
+							'name'  => __( 'Moodle user id', 'moopress' ),
+							'value' => (string) $moodle_id,
+						],
+					],
+				];
+			}
+		}
+		$rows = Moopress_Logger::for_person( $user->ID, $per_page, ( $page - 1 ) * $per_page );
+		foreach ( $rows as $row ) {
+			$data[] = [
+				'group_id'    => 'moopress-log',
+				'group_label' => __( 'MooPress audit log', 'moopress' ),
+				'item_id'     => 'moopress-log-' . $row['id'],
+				'data'        => [
+					[
+						'name'  => __( 'Time (UTC)', 'moopress' ),
+						'value' => $row['created'],
+					],
+					[
+						'name'  => __( 'Request to Moodle', 'moopress' ),
+						'value' => $row['wsfunction'],
+					],
+					[
+						'name'  => __( 'Result', 'moopress' ),
+						'value' => $row['status'],
+					],
+				],
+			];
+		}
+		return [
+			'data' => $data,
+			'done' => count( $rows ) < $per_page,
+		];
+	}
+
+	/**
+	 * Erase a person's Moodle link, managed-course list and audit-log entries.
+	 *
+	 * @param string $email Email address.
+	 * @param int    $page  Page, from 1 (all data goes in one pass).
+	 * @return array
+	 */
+	public static function erase_personal_data( string $email, int $page = 1 ): array {
+		unset( $page );
+		$user    = get_user_by( 'email', $email );
+		$removed = 0;
+		if ( $user ) {
+			$removed += Moopress_Logger::delete_for_person( $user->ID );
+			if ( delete_user_meta( $user->ID, Moopress_User_Match::META_MOODLE_ID ) ) {
+				++$removed;
+			}
+			if ( delete_user_meta( $user->ID, Moopress_Entitlement::MANAGED_META ) ) {
+				++$removed;
+			}
+		}
+		return [
+			'items_removed'  => $removed > 0,
+			'items_retained' => false,
+			'messages'       => [],
+			'done'           => true,
+		];
+	}
+
+	/**
+	 * Suggested text for the site's privacy policy (Settings > Privacy).
+	 *
+	 * @return void
+	 */
+	public static function privacy_policy(): void {
+		if ( ! function_exists( 'wp_add_privacy_policy_content' ) ) {
+			return;
+		}
+		wp_add_privacy_policy_content(
+			__( 'MooPress – Moodle bridge', 'moopress' ),
+			'<p>'
+				. esc_html__( 'This site links your account to our Moodle learning site to enrol you in courses and show your progress.', 'moopress' )
+				. ' ' . esc_html__( 'A log of each request to Moodle (when, what, and whether it worked) is kept for a while; credentials are always removed from it.', 'moopress' )
+				. '</p>'
+		);
 	}
 }

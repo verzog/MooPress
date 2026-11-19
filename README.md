@@ -9,23 +9,29 @@ MooPress is the direct WordPress ⇄ Moodle counterpart to
 proven patterns: a REST client, an audit log with credentials redacted, settings,
 and background jobs run through WP‑Cron with a dry‑run default.
 
-> **Early development.** This repository currently contains the plugin skeleton and
-> the specification in [`docs/SPEC.md`](docs/SPEC.md). Features are being built in
-> phases; see the spec for the plan.
+The design and plan are in [`docs/SPEC.md`](docs/SPEC.md). Single sign-on is a
+configuration of Moodle's existing `auth_oidc`/`auth_saml2` against this WordPress
+as the identity provider; it is not shipped as plugin code.
 
-## What it will do
+## What it does
 
-* **Single sign‑on:** WordPress is the front door; Moodle signs members in through
-  its existing auth plugin (OpenID Connect or SAML). No SSO stack is written by hand.
 * **Enrolment from purchases and membership:** a WooCommerce purchase, or a current
   membership, grants access to the mapped Moodle course(s). Access is **suspended**
   (never deleted) when it lapses, so grades and completion survive.
-* **Course catalogue and progress on WordPress:** a catalogue block/shortcode, and a
-  learner's own "My courses" and completion on their WordPress profile.
+* **An entitlement-reconcile engine:** each learner's Moodle enrolments are
+  reconciled to the union of everything they are entitled to, with a daily sweep, a
+  mass-change guard, and protection against suspending on a source outage.
+* **Course catalogue and progress on WordPress:** the `[moopress_catalogue]`
+  shortcode lists the site's courses, and `[moopress_my_courses]` shows a signed-in
+  member their enrolled courses and completion. (A shortcode drops into any block.)
+* **Configuration and safety:** a settings page with a Moodle connection test, an
+  audit log with credentials always redacted, a dry-run default, and the Privacy API
+  (export and erase a person's MooPress data).
 
-Entitlements come from **pluggable sources** — a WooCommerce purchase and iMIS
-membership today, a WordPress‑native membership later — so the organisation can move
-off iMIS over time without rewriting the bridge.
+Entitlements come from **pluggable sources**, and membership is read from a
+**WordPress role** (the role a system such as `wormiss` assigns to current members) —
+so MooPress never depends on iMIS directly, and the organisation can move off iMIS
+over time without rewriting the bridge.
 
 ## Requirements
 

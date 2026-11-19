@@ -16,12 +16,15 @@ MooPress is a direct WordPress and Moodle bridge. It lets a WordPress membership
 site sell and grant access to Moodle courses, sign members straight into Moodle,
 and show each learner their catalogue and progress on the WordPress side.
 
-Entitlements come from pluggable sources — a WooCommerce purchase and iMIS
-membership today, a WordPress-native membership later — so an organisation can move
-off iMIS over time without rewriting the bridge.
+Entitlements come from pluggable sources, and membership is read from a WordPress
+role, so MooPress never depends on iMIS directly and an organisation can move off
+iMIS over time without rewriting the bridge.
 
-This release contains the plugin skeleton and the specification (see docs/SPEC.md in
-the source repository). Features are being built in phases.
+It enrols buyers and members in Moodle courses, reconciles each learner's enrolments
+to what they are entitled to (with a daily sweep and safety limits), and shows a
+course catalogue and a signed-in member's courses and progress through the
+[moopress_catalogue] and [moopress_my_courses] shortcodes. A settings page provides a
+connection test, an audit log with credentials redacted, and a dry-run default.
 
 Moodle is a trademark of the Moodle Trust. WordPress is a trademark of the WordPress
 Foundation. MooPress is an independent project and is not made, sponsored or
