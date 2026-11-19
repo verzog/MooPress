@@ -44,9 +44,10 @@ class Test_Moopress_Privacy extends Moopress_Test_Case {
 	 *
 	 * @return void
 	 */
-	public function test_export_includes_link_and_log(): void {
+	public function test_export_includes_link_managed_and_log(): void {
 		$uid = self::factory()->user->create( [ 'user_email' => 'jo@example.org' ] );
 		update_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, 55 );
+		update_user_meta( $uid, Moopress_Entitlement::MANAGED_META, [ 101 ] );
 		$this->log_a_call( $uid );
 
 		$result = Moopress_Plugin::export_personal_data( 'jo@example.org' );
@@ -54,6 +55,9 @@ class Test_Moopress_Privacy extends Moopress_Test_Case {
 		$json = (string) wp_json_encode( $result['data'] );
 		$this->assertStringContainsString( 'moopress-link', $json );
 		$this->assertStringContainsString( 'moopress-log', $json );
+		// The managed course list and the captured (redacted) request body are included.
+		$this->assertStringContainsString( '101', $json );
+		$this->assertStringContainsString( 'Request body', $json );
 	}
 
 	/**
@@ -72,7 +76,7 @@ class Test_Moopress_Privacy extends Moopress_Test_Case {
 	 *
 	 * @return void
 	 */
-	public function test_erase_removes_link_log_and_managed(): void {
+	public function test_erase_removes_log_but_retains_operational_state(): void {
 		$uid = self::factory()->user->create( [ 'user_email' => 'jo@example.org' ] );
 		update_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, 55 );
 		update_user_meta( $uid, Moopress_Entitlement::MANAGED_META, [ 101 ] );
@@ -80,9 +84,12 @@ class Test_Moopress_Privacy extends Moopress_Test_Case {
 
 		$result = Moopress_Plugin::erase_personal_data( 'jo@example.org' );
 		$this->assertTrue( $result['items_removed'] );
+		$this->assertTrue( $result['items_retained'] );
 		$this->assertTrue( $result['done'] );
-		$this->assertSame( '', get_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, true ) );
-		$this->assertSame( '', get_user_meta( $uid, Moopress_Entitlement::MANAGED_META, true ) );
+		// The audit log is erased; the Moodle link and managed list are kept so
+		// reconciliation can still suspend the person's enrolments when they lapse.
 		$this->assertEmpty( Moopress_Logger::for_person( $uid ) );
+		$this->assertSame( '55', get_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, true ) );
+		$this->assertSame( [ 101 ], get_user_meta( $uid, Moopress_Entitlement::MANAGED_META, true ) );
 	}
 }

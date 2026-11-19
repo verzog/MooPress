@@ -134,41 +134,65 @@ class Moopress_Plugin {
 		$per_page = 100;
 		$data     = [];
 		if ( 1 === $page ) {
-			$moodle_id = get_user_meta( $user->ID, Moopress_User_Match::META_MOODLE_ID, true );
+			$link_items = [];
+			$moodle_id  = get_user_meta( $user->ID, Moopress_User_Match::META_MOODLE_ID, true );
 			if ( '' !== (string) $moodle_id ) {
+				$link_items[] = [
+					'name'  => __( 'Moodle user id', 'moopress' ),
+					'value' => (string) $moodle_id,
+				];
+			}
+			$managed = Moopress_Entitlement::managed_courses( $user->ID );
+			if ( [] !== $managed ) {
+				$link_items[] = [
+					'name'  => __( 'Managed Moodle course ids', 'moopress' ),
+					'value' => implode( ', ', array_map( 'strval', $managed ) ),
+				];
+			}
+			if ( [] !== $link_items ) {
 				$data[] = [
 					'group_id'    => 'moopress-link',
 					'group_label' => __( 'MooPress Moodle link', 'moopress' ),
 					'item_id'     => 'moopress-link',
-					'data'        => [
-						[
-							'name'  => __( 'Moodle user id', 'moopress' ),
-							'value' => (string) $moodle_id,
-						],
-					],
+					'data'        => $link_items,
 				];
 			}
 		}
-		$rows = Moopress_Logger::for_person( $user->ID, $per_page, ( $page - 1 ) * $per_page );
+		$rows   = Moopress_Logger::for_person( $user->ID, $per_page, ( $page - 1 ) * $per_page );
+		$bodies = [
+			'error'    => __( 'Detail', 'moopress' ),
+			'request'  => __( 'Request body', 'moopress' ),
+			'response' => __( 'Response body', 'moopress' ),
+		];
 		foreach ( $rows as $row ) {
+			$items = [
+				[
+					'name'  => __( 'Time (UTC)', 'moopress' ),
+					'value' => $row['created'],
+				],
+				[
+					'name'  => __( 'Request to Moodle', 'moopress' ),
+					'value' => $row['wsfunction'],
+				],
+				[
+					'name'  => __( 'Result', 'moopress' ),
+					'value' => $row['status'],
+				],
+			];
+			// Any captured bodies are already stored with credentials redacted.
+			foreach ( $bodies as $column => $label ) {
+				if ( ! empty( $row[ $column ] ) ) {
+					$items[] = [
+						'name'  => $label,
+						'value' => $row[ $column ],
+					];
+				}
+			}
 			$data[] = [
 				'group_id'    => 'moopress-log',
 				'group_label' => __( 'MooPress audit log', 'moopress' ),
 				'item_id'     => 'moopress-log-' . $row['id'],
-				'data'        => [
-					[
-						'name'  => __( 'Time (UTC)', 'moopress' ),
-						'value' => $row['created'],
-					],
-					[
-						'name'  => __( 'Request to Moodle', 'moopress' ),
-						'value' => $row['wsfunction'],
-					],
-					[
-						'name'  => __( 'Result', 'moopress' ),
-						'value' => $row['status'],
-					],
-				],
+				'data'        => $items,
 			];
 		}
 		return [
@@ -186,21 +210,30 @@ class Moopress_Plugin {
 	 */
 	public static function erase_personal_data( string $email, int $page = 1 ): array {
 		unset( $page );
-		$user    = get_user_by( 'email', $email );
-		$removed = 0;
-		if ( $user ) {
-			$removed += Moopress_Logger::delete_for_person( $user->ID );
-			if ( delete_user_meta( $user->ID, Moopress_User_Match::META_MOODLE_ID ) ) {
-				++$removed;
-			}
-			if ( delete_user_meta( $user->ID, Moopress_Entitlement::MANAGED_META ) ) {
-				++$removed;
-			}
+		$user = get_user_by( 'email', $email );
+		if ( ! $user ) {
+			return [
+				'items_removed'  => false,
+				'items_retained' => false,
+				'messages'       => [],
+				'done'           => true,
+			];
+		}
+		$removed  = Moopress_Logger::delete_for_person( $user->ID );
+		$messages = [];
+		// The Moodle link and managed-course list are kept, not deleted: dropping
+		// them would strand any active Moodle enrolment with nothing left to suspend
+		// it. Reconciliation suspends it when the person lapses, and the meta is
+		// removed with the WordPress account itself.
+		$retained = '' !== (string) get_user_meta( $user->ID, Moopress_User_Match::META_MOODLE_ID, true )
+			|| [] !== Moopress_Entitlement::managed_courses( $user->ID );
+		if ( $retained ) {
+			$messages[] = __( 'The Moodle link and course list are kept so the person\'s Moodle enrolments can still be suspended when they lapse; remove their Moodle account separately if required.', 'moopress' );
 		}
 		return [
 			'items_removed'  => $removed > 0,
-			'items_retained' => false,
-			'messages'       => [],
+			'items_retained' => $retained,
+			'messages'       => $messages,
 			'done'           => true,
 		];
 	}
