@@ -39,6 +39,13 @@ class Moopress_Fake_Moodle {
 	private array $responses = [];
 
 	/**
+	 * Raw (non-JSON) response bodies, keyed by web-service function name.
+	 *
+	 * @var array
+	 */
+	private array $raw_responses = [];
+
+	/**
 	 * A WordPress-level transport error to return for the next request, if any.
 	 *
 	 * @var WP_Error|null
@@ -70,6 +77,17 @@ class Moopress_Fake_Moodle {
 	 */
 	public function set( string $wsfunction, $data ): void {
 		$this->responses[ $wsfunction ] = $data;
+	}
+
+	/**
+	 * Queue a raw response body (not JSON) for a function, e.g. an HTML error page.
+	 *
+	 * @param string $wsfunction Function name.
+	 * @param string $raw        The exact body Moodle should return.
+	 * @return void
+	 */
+	public function set_raw( string $wsfunction, string $raw ): void {
+		$this->raw_responses[ $wsfunction ] = $raw;
 	}
 
 	/**
@@ -118,10 +136,12 @@ class Moopress_Fake_Moodle {
 		$body          = isset( $args['body'] ) && is_array( $args['body'] ) ? $args['body'] : [];
 		$this->calls[] = $body;
 		$wsfunction    = isset( $body['wsfunction'] ) ? (string) $body['wsfunction'] : '';
-		$data          = array_key_exists( $wsfunction, $this->responses ) ? $this->responses[ $wsfunction ] : null;
+		$encoded       = array_key_exists( $wsfunction, $this->raw_responses )
+			? $this->raw_responses[ $wsfunction ]
+			: wp_json_encode( array_key_exists( $wsfunction, $this->responses ) ? $this->responses[ $wsfunction ] : null );
 		return [
 			'headers'  => [],
-			'body'     => wp_json_encode( $data ),
+			'body'     => $encoded,
 			'response' => [
 				'code'    => 200,
 				'message' => 'OK',

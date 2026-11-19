@@ -117,6 +117,13 @@ class Moopress_Rest_Client {
 			throw new Moopress_Exception( $reason );
 		}
 		$decoded = json_decode( $raw, true );
+		// A valid JSON "null" (a void function's response) decodes with no error; an HTML
+		// maintenance or error page served as HTTP 200 does not, and must not read as success.
+		if ( JSON_ERROR_NONE !== json_last_error() ) {
+			$reason = __( 'Moodle returned a response that was not valid JSON.', 'moopress' );
+			Moopress_Logger::record_call( $wsfunction, Moopress_Logger::STATUS_ERROR, $reason, $request, $raw );
+			throw new Moopress_Exception( $reason );
+		}
 		if ( is_array( $decoded ) && isset( $decoded['exception'] ) ) {
 			$message = isset( $decoded['message'] ) ? (string) $decoded['message'] : (string) $decoded['exception'];
 			Moopress_Logger::record_call( $wsfunction, Moopress_Logger::STATUS_ERROR, $message, $request, $raw );

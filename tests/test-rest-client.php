@@ -94,4 +94,27 @@ class Test_Moopress_Rest_Client extends Moopress_Test_Case {
 		$this->assertStringContainsString( 'wstoken=[redacted]', $rows[0]['request'] );
 		$this->assertStringNotContainsString( 'test-token-abc123', $rows[0]['request'] );
 	}
+
+	/**
+	 * An HTTP 200 that is not valid JSON (e.g. a maintenance page) throws, not a silent empty result.
+	 *
+	 * @return void
+	 */
+	public function test_non_json_response_throws(): void {
+		$this->moodle->set_raw( 'core_webservice_get_site_info', '<html><body>Service unavailable</body></html>' );
+		$client = new Moopress_Rest_Client();
+		$this->expectException( Moopress_Exception::class );
+		$client->get_site_info();
+	}
+
+	/**
+	 * A valid JSON null (a void function's response) is returned, not treated as an error.
+	 *
+	 * @return void
+	 */
+	public function test_valid_null_response_is_not_an_error(): void {
+		$this->moodle->set( 'enrol_manual_enrol_users', null );
+		$client = new Moopress_Rest_Client();
+		$this->assertNull( $client->call( 'enrol_manual_enrol_users', [ 'enrolments' => [] ] ) );
+	}
 }
