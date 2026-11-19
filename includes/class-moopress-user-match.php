@@ -59,11 +59,14 @@ class Moopress_User_Match {
 	/**
 	 * Look the user up in Moodle and cache the result.
 	 *
-	 * A Moodle error is swallowed (the REST client logs it) and treated as "no
-	 * match" so that matching never throws into a caller.
+	 * Only an unambiguous single match is a reliable identity: Moodle does not
+	 * force email or idnumber to be unique, so zero matches or several both count
+	 * as no match and clear any stale cached mapping. A transport error, by
+	 * contrast, is transient: it is swallowed (the REST client logs it) and leaves
+	 * any cached mapping untouched, so matching never throws into a caller.
 	 *
 	 * @param int $wp_user_id WordPress user ID.
-	 * @return int|null The Moodle user id, or null when there is no match.
+	 * @return int|null The Moodle user id, or null when there is no single match.
 	 */
 	public static function resolve( int $wp_user_id ): ?int {
 		$user = get_userdata( $wp_user_id );
@@ -83,13 +86,19 @@ class Moopress_User_Match {
 				]
 			);
 		} catch ( Moopress_Exception $e ) {
+			// Transient failure: leave any cached mapping as it is.
+			unset( $e );
 			return null;
 		}
-		if ( is_array( $found ) && isset( $found[0]['id'] ) ) {
-			$moodle_id = (int) $found[0]['id'];
+		$matches = is_array( $found ) ? $found : [];
+		if ( 1 === count( $matches ) && isset( $matches[0]['id'] ) ) {
+			$moodle_id = (int) $matches[0]['id'];
 			update_user_meta( $wp_user_id, self::META_MOODLE_ID, $moodle_id );
 			return $moodle_id;
 		}
+		// Moodle answered with no match, or with more than one (an ambiguous
+		// identity): drop any stale mapping and report no match.
+		self::forget( $wp_user_id );
 		return null;
 	}
 

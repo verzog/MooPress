@@ -115,4 +115,47 @@ class Test_Moopress_User_Match extends Moopress_Test_Case {
 		$this->assertSame( 'username', $last['field'] );
 		$this->assertSame( [ 'jo_moodle' ], $last['values'] );
 	}
+
+	/**
+	 * Several Moodle accounts sharing the key is an ambiguous, unusable match.
+	 *
+	 * @return void
+	 */
+	public function test_ambiguous_match_is_rejected(): void {
+		$uid = self::factory()->user->create( [ 'user_email' => 'shared@example.org' ] );
+		$this->moodle->set( 'core_user_get_users_by_field', [ [ 'id' => 1 ], [ 'id' => 2 ] ] );
+
+		$this->assertNull( Moopress_User_Match::moodle_user_id( $uid ) );
+		$this->assertSame( '', get_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, true ) );
+	}
+
+	/**
+	 * A refresh that definitively finds no match clears a stale cached id.
+	 *
+	 * @return void
+	 */
+	public function test_refresh_clears_stale_mapping(): void {
+		$uid = self::factory()->user->create( [ 'user_email' => 'gone@example.org' ] );
+		update_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, 42 );
+		$this->moodle->set( 'core_user_get_users_by_field', [] );
+
+		$this->assertNull( Moopress_User_Match::moodle_user_id( $uid, true ) );
+		$this->assertSame( '', get_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, true ) );
+		// A later ordinary lookup no longer serves the stale 42.
+		$this->assertNull( Moopress_User_Match::moodle_user_id( $uid ) );
+	}
+
+	/**
+	 * A transport error leaves a cached mapping untouched (it is only transient).
+	 *
+	 * @return void
+	 */
+	public function test_transport_error_keeps_cached_mapping(): void {
+		$uid = self::factory()->user->create( [ 'user_email' => 'kept@example.org' ] );
+		update_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, 42 );
+		$this->moodle->set_http_error( 'Connection timed out' );
+
+		$this->assertNull( Moopress_User_Match::moodle_user_id( $uid, true ) );
+		$this->assertSame( '42', get_user_meta( $uid, Moopress_User_Match::META_MOODLE_ID, true ) );
+	}
 }
