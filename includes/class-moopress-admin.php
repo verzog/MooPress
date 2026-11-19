@@ -104,6 +104,11 @@ class Moopress_Admin {
 		$clean['log_capture']        = ! empty( $input['log_capture'] );
 		$clean['log_retention_days'] = max( 1, (int) ( $input['log_retention_days'] ?? 30 ) );
 
+		$by                      = (string) ( $input['match_by'] ?? 'email' );
+		$clean['match_by']       = in_array( $by, [ 'email', 'idnumber', 'username' ], true ) ? $by : 'email';
+		$meta_key                = sanitize_key( (string) ( $input['match_meta_key'] ?? '' ) );
+		$clean['match_meta_key'] = '' !== $meta_key ? $meta_key : 'moopress_idnumber';
+
 		add_settings_error( Moopress_Settings::OPTION, 'moopress_saved', __( 'Settings saved.', 'moopress' ), 'success' );
 		return $clean;
 	}
@@ -263,6 +268,40 @@ class Moopress_Admin {
 								type="number" min="1" class="small-text"
 								value="<?php echo esc_attr( (string) $settings['log_retention_days'] ); ?>">
 							<?php echo esc_html__( 'days', 'moopress' ); ?>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="moopress_match_by"><?php echo esc_html__( 'Match users by', 'moopress' ); ?></label>
+						</th>
+						<td>
+							<select name="<?php echo esc_attr( $opt ); ?>[match_by]" id="moopress_match_by">
+								<option value="email" <?php selected( 'email', $settings['match_by'] ); ?>>
+									<?php echo esc_html__( 'Email address', 'moopress' ); ?>
+								</option>
+								<option value="idnumber" <?php selected( 'idnumber', $settings['match_by'] ); ?>>
+									<?php echo esc_html__( 'ID number (e.g. iMIS ID)', 'moopress' ); ?>
+								</option>
+								<option value="username" <?php selected( 'username', $settings['match_by'] ); ?>>
+									<?php echo esc_html__( 'Username', 'moopress' ); ?>
+								</option>
+							</select>
+							<p class="description">
+								<?php echo esc_html__( 'How a WordPress user is matched to a Moodle user.', 'moopress' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="moopress_match_meta_key"><?php echo esc_html__( 'ID number field', 'moopress' ); ?></label>
+						</th>
+						<td>
+							<input name="<?php echo esc_attr( $opt ); ?>[match_meta_key]" id="moopress_match_meta_key"
+								type="text" class="regular-text"
+								value="<?php echo esc_attr( $settings['match_meta_key'] ); ?>">
+							<p class="description">
+								<?php echo esc_html__( 'When matching by ID number: the WordPress user-field key that holds it (e.g. the iMIS ID), matched against Moodle\'s idnumber.', 'moopress' ); ?>
+							</p>
 						</td>
 					</tr>
 				</table>
